@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="英語">
+<meta name="theme-color" content="#ffffff">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<title>英語トレーニング</title>
+<style>
+:root{
+  --bg:#ffffff; --ink:#1f1f1d; --sub:#8a8983; --line:#ecebe6; --key:#f3f2ed;
+  --accent:#185fa5; --accent-soft:#e6f1fb; --accent-ink:#0c447c;
+  --rv:#d85a30; --rv-soft:#faece7; --rv-ink:#712b13; --ok:#1d9e75; --ng:#d85a30;
+  --dark:#1f1f1d; --on-dark:#ffffff;
+  --serif:"Hiragino Mincho ProN","Hiragino Mincho Pro","Yu Mincho","YuMincho","Noto Serif JP",serif;
+  --en:Georgia,"Times New Roman",serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#141413; --ink:#ecebe6; --sub:#9a9993; --line:#2a2a28; --key:#232321;
+    --accent:#85b7eb; --accent-soft:#0c2a47; --accent-ink:#b5d4f4;
+    --rv:#f0997b; --rv-soft:#3d2118; --rv-ink:#f5c4b3; --ok:#5dcaa5; --ng:#f0997b;
+    --dark:#ecebe6; --on-dark:#141413;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--serif)}
+body{padding:calc(env(safe-area-inset-top) + 8px) 16px calc(env(safe-area-inset-bottom) + 24px)}
+main{max-width:480px;margin:0 auto}
+h1{font-size:26px;font-weight:600;margin:6px 0 10px}
+h2{font-size:16px;font-weight:600;margin:26px 0 10px}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+.sub{color:var(--sub);font-size:13px}
+.center{text-align:center}
+.en{font-family:var(--en)}
+.top{display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px;gap:8px}
+.bar{height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.tag{font-size:12px;padding:3px 10px;border-radius:99px;background:var(--key);color:var(--sub);white-space:nowrap}
+.tag.rv{background:var(--rv-soft);color:var(--rv-ink)}
+.prompt{font-size:15px;color:var(--sub);margin:16px 0 6px}
+.ja{font-size:20px;line-height:1.7;margin:4px 0 10px}
+.ja u{text-decoration:none;border-bottom:2px solid var(--accent)}
+.sent{font-family:var(--en);font-size:22px;line-height:1.6;margin:8px 0 14px}
+.blank{display:inline-block;min-width:4em;border-bottom:2px solid var(--accent);text-align:center;color:var(--accent)}
+.word{font-family:var(--en);font-size:40px;margin:18px 0 4px;text-align:center}
+.mean{font-size:20px;text-align:center;margin:4px 0 14px}
+input.ans{width:100%;font-family:var(--en);font-size:22px;padding:12px 14px;border-radius:14px;border:2px solid var(--line);background:var(--key);color:var(--ink);outline:none}
+input.ans:focus{border-color:var(--accent)}
+textarea.ans{width:100%;font-family:var(--en);font-size:19px;line-height:1.5;padding:12px 14px;border-radius:14px;border:2px solid var(--line);background:var(--key);color:var(--ink);outline:none;min-height:96px;resize:vertical}
+.hintline{font-family:var(--en);letter-spacing:.15em;color:var(--sub);margin:8px 0}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.choices button{padding:16px 8px;font-size:17px;background:var(--key);border-radius:14px;border:2px solid transparent;line-height:1.4}
+.big{display:block;width:100%;padding:17px;border-radius:18px;background:var(--dark);color:var(--on-dark);font-size:18px;margin-top:14px}
+.big small{display:block;font-size:12px;opacity:.75;margin-top:4px}
+.ghost{display:block;width:100%;padding:14px;border-radius:16px;background:var(--key);font-size:16px;margin-top:10px}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.link{color:var(--sub);font-size:14px;padding:10px 0;text-decoration:underline;text-underline-offset:3px}
+.foot{display:flex;justify-content:space-between;margin-top:10px}
+.speak{display:inline-flex;align-items:center;gap:6px;color:var(--accent);font-size:14px;padding:6px 10px;border-radius:99px;background:var(--accent-soft)}
+.mark{font-size:64px;text-align:center;margin:14px 0 0;line-height:1}
+.mark.ok{color:var(--ok)}.mark.ng{color:var(--ng)}
+.card{border-top:1px solid var(--line);padding:12px 0}
+.diff span{font-family:var(--en);font-size:19px;padding:0 2px;border-radius:4px}
+.diff .miss{background:var(--rv-soft);color:var(--rv-ink);text-decoration:underline}
+.diff .extra{color:var(--ng);text-decoration:line-through}
+.msg{background:var(--rv-soft);color:var(--rv-ink);border-radius:12px;padding:10px 14px;font-size:14px;margin-top:10px}
+.info{background:var(--accent-soft);color:var(--accent-ink);border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.7;margin-top:10px}
+.menu{display:flex;flex-direction:column;margin-top:12px;border-top:1px solid var(--line)}
+.menu button{display:flex;justify-content:space-between;align-items:center;padding:16px 2px;border-bottom:1px solid var(--line);font-size:16px;text-align:left}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}
+.stats div{background:var(--key);border-radius:14px;padding:14px 6px;text-align:center}
+.stats b{display:block;font-size:26px;font-weight:600}
+.stats span{font-size:12px;color:var(--sub)}
+label.f{display:block;margin:10px 0}
+label.f span{display:block;font-size:13px;color:var(--sub);margin-bottom:4px}
+select,input[type=date],input[type=number]{font:inherit;font-size:16px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--key);color:var(--ink);width:100%}
+.list div{padding:9px 0;border-bottom:1px solid var(--line);font-size:15px}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script src="config.js?v=1"></script>
+<script src="app.js?v=1"></script>
+</body>
+</html>
