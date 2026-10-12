@@ -20,7 +20,9 @@ const nextTuesday = () => { const d = new Date(); d.setDate(d.getDate() + ((2 - 
 let S, D = null;
 function load() {
   try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
-  if (!S || !S.cards) S = { cards: {}, seen: {}, log: [], settings: { from: 106, to: 109, testDate: nextTuesday(), kp: '' }, created: today() };
+  if (!S || !S.cards) S = { cards: {}, seen: {}, log: [], settings: { from: 114, to: 117, testDate: nextTuesday(), kp: '6-3', mode: 'paper' }, sheets: [], created: today() };
+  if (!S.settings.mode) S.settings.mode = 'paper';
+  if (!S.sheets) S.sheets = [];
   try { D = JSON.parse(localStorage.getItem(DKEY)); } catch (e) { D = null; }
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* 保存できない環境 */ } }
@@ -121,7 +123,7 @@ function dueList() {
     .sort((a, b) => (inR(b[0]) - inR(a[0])) || (b[1].rv || 0) - (a[1].rv || 0) || a[1].d.localeCompare(b[1].d)).map(([id]) => id);
 }
 const inR = id => (id[0] === 'w' && W[Number(id.slice(1).split('.')[0])] && inRange(W[Number(id.slice(1).split('.')[0])])) ? 1 : 0;
-const cardExists = id => id[0] === 'w' ? !!W[Number(id.slice(1).split('.')[0])] : id[0] === 'k' ? !!KP[id.slice(1)] : !!IRR[id.slice(1)];
+const cardExists = id => id[0] === 'w' ? !!W[Number(id.slice(1).split('.')[0])] : id[0] === 'k' ? !!KP[id.slice(1)] : id[0] === 'r' ? !!redFind(id) : !!IRR[id.slice(1)];
 function newWords() { // テスト範囲の未学習語。番号が隣り合う語（似た語のことが多い）を続けて出さない
   const list = (D.words || []).filter(w => inRange(w) && !S.seen[w.no]).sort((a, b) => a.no - b.no);
   const odd = list.filter((_, i) => i % 2 === 0), even = list.filter((_, i) => i % 2 === 1);
@@ -136,6 +138,7 @@ function makeItem(id, opt = {}) {
     return { id, kind: sk, w, ...opt };
   }
   if (id[0] === 'k') return { id, kind: 'kp', k: KP[id.slice(1)], ...opt };
+  if (id[0] === 'r') { const f = redFind(id); return { id, kind: 'red', sheet: f.sheet, mask: f.mask, ...opt }; }
   return { id, kind: 'irr', v: IRR[id.slice(1)], ...opt };
 }
 function startDaily() { Q = { mode: 'daily', title: '毎日10分', end: Date.now() + DAILY_MS, done: [], retry: [], used: new Set(), n: 0 }; next(); }
@@ -191,10 +194,12 @@ function tag() {
   const c = S.cards[Q.cur.id];
   if (Q.cur.retry) return '<span class="tag rv">もう一度（形を変えて）</span>';
   if (c && c.rv) return '<span class="tag rv">リベンジ問題</span>';
-  return `<span class="tag">${{ m: '意味', c: '例文の空欄', p: 'つづり', kp: 'KP英作文', irr: '不規則動詞' }[Q.cur.kind]}</span>`;
+  return `<span class="tag">${{ m: '意味', c: '例文の空欄', p: 'つづり', kp: 'KP英作文', irr: '不規則動詞', red: '赤シート' }[Q.cur.kind]}</span>`;
 }
 function ask() {
   const it = Q.cur; let body = '';
+  if (it.kind === 'red') return askRed();
+  const paper = S.settings.mode !== 'type' && it.kind !== 'm';
   if (it.kind === 'm') {
     const opts = choices(it.w);
     body = `<div class="word">${esc(it.w.word)}</div><div class="center">${spkBtn(it.w.word)}</div>
@@ -214,13 +219,19 @@ function ask() {
     body = `<div class="prompt">過去形を書こう</div><div class="word">${esc(it.v[0])}</div><div class="mean">${esc(it.v[2] || '')}</div>
       <input class="ans" id="a" ${INPUT}><div id="hl"></div>`;
   }
+  if (paper) body = body.replace(/<input class="ans"[^>]*>|<textarea[\s\S]*?<\/textarea>/, '<div class="info">手元の紙に書いてから「答えを見る」を押そう。</div><div id="rv"></div>');
   app().innerHTML = `${topBar()}<div class="top">${tag()}<span class="sub">${it.w ? `No.${it.w.no}　p.${it.w.page}` : ''}</span></div>${body}
     <div id="msg"></div>
-    ${it.kind === 'm' ? '' : '<button class="big" id="ok">答える</button>'}
+    ${it.kind === 'm' ? '' : paper ? '<button class="big" id="ok" disabled style="opacity:.4">答えを見る（3）</button>' : '<button class="big" id="ok">答える</button>'}
     <div class="foot"><button class="link" id="hint">${it.kind === 'm' ? '' : 'ヒント'}</button><button class="link" id="quit">今日はここまで</button></div>`;
   bindSpeak();
   if (it.kind === 'm') app().querySelectorAll('[data-o]').forEach(b => b.onclick = () => judge(b.dataset.o === it.w.mean, b.dataset.o));
-  else {
+  else if (paper) {
+    const b = $('#ok'); let n = 3;
+    const tick = setInterval(() => { n--; if (!b.isConnected) return clearInterval(tick); if (n > 0) b.textContent = `答えを見る（${n}）`; else { clearInterval(tick); b.disabled = false; b.style.opacity = 1; b.textContent = '答えを見る'; } }, 1000);
+    b.onclick = reveal;
+    $('#hint').onclick = () => { it.hint = true; $('#hl') ? $('#hl').innerHTML = `<div class="hintline">${esc(hintOf(it))}</div>` : $('#msg').innerHTML = `<div class="hintline">${esc(hintOf(it))}</div>`; };
+  } else {
     const a = $('#a'); setTimeout(() => a.focus(), 50);
     a.onkeydown = e => { if (e.key === 'Enter' && it.kind !== 'kp') { e.preventDefault(); submit(); } };
     $('#ok').onclick = submit;
@@ -228,7 +239,7 @@ function ask() {
   }
   $('#quit').onclick = () => (Q.done.length ? finish() : home());
 }
-function answerOf(it) { return it.kind === 'm' ? it.w.mean : it.kind === 'c' ? it.w.target : it.kind === 'p' ? it.w.word.replace(/\s*~\s*/g, ' ').trim() : it.kind === 'irr' ? it.v[1] : it.k.en; }
+function answerOf(it) { if (it.kind === 'red') return `赤シート（${it.sheet.name}）`; return it.kind === 'm' ? it.w.mean : it.kind === 'c' ? it.w.target : it.kind === 'p' ? it.w.word.replace(/\s*~\s*/g, ' ').trim() : it.kind === 'irr' ? it.v[1] : it.k.en; }
 function hintOf(it) {
   if (it.kind === 'kp') return it.k.hint || '使う文法：' + (it.k.grammar || '');
   const a = answerOf(it).split(/,\s*/)[0];
@@ -264,9 +275,32 @@ function judge(ok, given, style) {
   if (!ok && !it.retry) Q.retry.push({ at: Q.done.length + 3, item: { ...retryForm(it), retry: true } });
   showResult(ok, given, style);
 }
+function reveal() {
+  const it = Q.cur; it.sec = (Date.now() - it.t0) / 1000;
+  const ans = answerOf(it), big = it.kind === 'kp' ? `<div class="sent">${esc(ans)}</div>` : `<div class="word" style="letter-spacing:.12em">${esc(ans)}</div>`;
+  const check = it.kind === 'kp' ? `<div class="sub" style="margin-top:6px">点検：文の始めの大文字／最後の「.」「?」／三単現の s・複数形の s／つづり</div>` +
+    ((it.k.alts || []).length ? `<div class="sub">これも正解：${(it.k.alts || []).slice(0, 2).map(a => `<span class="en">${esc(a)}</span>`).join('　')}</div>` : '') : '<div class="sub center">１文字でも違えば×（テストと同じ）</div>';
+  $('#rv').innerHTML = `<div class="card"><div class="sub">正しい答え</div>${big}${check}<div style="margin-top:8px">${spkBtn(it.kind === 'kp' ? it.k.en : (it.w ? (it.w.ex_en || it.w.word) : ans))}</div></div>
+    <div class="row" style="margin-top:10px"><button class="big" data-g="good" style="background:var(--ok)">○ 合ってた</button>${it.kind === 'kp' ? '<button class="big" data-g="hard" style="background:#ba7517">△ 小さなミス</button>' : ''}<button class="big" data-g="again" style="background:var(--ng)">× 違った</button></div>`;
+  $('#ok').remove(); bindSpeak();
+  app().querySelectorAll('[data-g]').forEach(b => b.onclick = () => selfJudge(b.dataset.g));
+  $('#rv').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function selfJudge(g) { // 紙に書いて自分で○×
+  const it = Q.cur, ok = g !== 'again';
+  if (ok && (it.hint || it.sec > 40)) g = 'hard';
+  if (!it.retry) rate(it.id, g); else if (!ok) rate(it.id, 'again');
+  S.log.push({ at: new Date().toISOString(), mode: Q.mode, id: it.id, ok, grade: g, sec: Math.round(it.sec || 0), hint: it.hint, retry: !!it.retry, self: 1 });
+  if (S.log.length > 4000) S.log = S.log.slice(-4000);
+  save();
+  Q.done.push({ id: it.id, ok, retry: !!it.retry, it });
+  if (!ok && !it.retry) Q.retry.push({ at: Q.done.length + 3, item: { ...retryForm(it), retry: true } });
+  next();
+}
 function retryForm(it) { // 間違えたら、少しあとに形を変えて聞き直す
   if (it.kind === 'c') return makeItem(`w${it.w.no}.p`);
   if (it.kind === 'p') return makeItem(cardOk(`w${it.w.no}.c`) ? `w${it.w.no}.c` : `w${it.w.no}.m`);
+  if (it.kind === 'red') return makeItem(it.id);
   return makeItem(it.id);
 }
 function showResult(ok, given, style) {
@@ -331,6 +365,7 @@ function home() {
     <div class="menu">
       <button id="compli"><span>コンプリ本番形式（10問）</span><span class="sub">テスト前日に</span></button>
       <button id="kp"><span>KP英作文</span><span class="sub">${esc(st.kp || '範囲を選ぶ')}</span></button>
+      <button id="red"><span>写真で赤シート</span><span class="sub">${S.sheets.length}枚</span></button>
       <button id="irr"><span>不規則動詞の過去形</span><span class="sub">${(D.irr || []).length}語</span></button>
       <button id="cfg"><span>設定（範囲・テスト日）</span><span class="sub">›</span></button>
     </div>`;
@@ -342,6 +377,7 @@ function home() {
   };
   $('#kp').onclick = kpPicker; $('#irr').onclick = () => startFixed('irr', '不規則動詞', Object.keys(IRR).sort(() => Math.random() - .5).slice(0, 10).map(b => makeItem(`v${b}`)));
   $('#cfg').onclick = settings;
+  $('#red').onclick = redList;
 }
 function kpPicker() {
   const secs = [...new Set((D.kp || []).map(k => k.section))];
@@ -360,12 +396,14 @@ function settings() {
     <h2>次のコンプリテスト</h2>
     <div class="row"><label class="f"><span>範囲（最初の頁）</span><input type="number" id="from" value="${st.from}"></label><label class="f"><span>（最後の頁）</span><input type="number" id="to" value="${st.to}"></label></div>
     <label class="f"><span>テストの日</span><input type="date" id="td" value="${st.testDate || ''}"></label>
+    <h2>答え方</h2>
+    <select id="mode"><option value="paper" ${st.mode !== 'type' ? 'selected' : ''}>紙に書いて、自分で○×（標準）</option><option value="type" ${st.mode === 'type' ? 'selected' : ''}>iPhoneに打ち込んで自動採点</option></select>
     <h2>データ</h2>
     <p class="sub">単語 ${(D.words || []).length}語・KP ${(D.kp || []).length}文・不規則動詞 ${(D.irr || []).length}語（${esc(D.version || '')}）</p>
     <button class="ghost" id="reimp">新しいデータを取り込む</button>
     <button class="ghost" id="ex">記録をファイルに書き出す</button>
     <button class="big" id="sv">保存してもどる</button>`;
-  $('#sv').onclick = () => { st.from = +$('#from').value; st.to = +$('#to').value; st.testDate = $('#td').value; save(); home(); };
+  $('#sv').onclick = () => { st.from = +$('#from').value; st.to = +$('#to').value; st.testDate = $('#td').value; st.mode = $('#mode').value; save(); home(); };
   $('#reimp').onclick = importScreen;
   $('#ex').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(S)], { type: 'application/json' })); a.download = `eigo-kiroku-${today()}.json`; a.click(); };
 }
