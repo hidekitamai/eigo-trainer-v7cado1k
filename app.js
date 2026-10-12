@@ -335,19 +335,25 @@ function finish() {
   $('#hm').onclick = home; Q = null;
 }
 function streak() { const s = new Set(S.log.map(l => dstr(new Date(l.at)))); let n = 0; for (let d = today(); s.has(d); d = addDays(d, -1)) n++; return n; }
-function sendLog() { // 記録は番号と正誤だけ送る（単語・例文の中身は送らない）
+function sendLog() { // 記録は番号と正誤だけ送る（単語・例文の中身・写真は送らない）。150件ずつ
   if (!CFG.formPostUrl || !CFG.formFields) return;
-  const pending = S.log.filter(l => !l.s); if (!pending.length) return;
-  try {
-    const f = CFG.formFields, fd = new FormData(), first = pending.filter(l => !l.retry);
-    fd.append(f.mode, 'eigo-' + ((Q && Q.mode) || 'daily'));
-    fd.append(f.score, `${first.filter(l => l.ok).length}/${first.length}`);
-    fd.append(f.log, JSON.stringify(pending.map(l => [l.at.slice(0, 16), l.id, l.ok ? 1 : 0, l.grade, l.sec, l.hint ? 1 : 0, l.retry ? 1 : 0])));
-    fetch(CFG.formPostUrl, { method: 'POST', body: fd, mode: 'no-cors', keepalive: true }).catch(() => {});
-    pending.forEach(l => { l.s = 1; }); save();
-  } catch (e) { /* 端末には残っている */ }
+  const f = CFG.formFields, pending = S.log.filter(l => !l.s); if (!pending.length) return;
+  for (let i = 0; i < pending.length; i += 150) {
+    const part = pending.slice(i, i + 150), first = part.filter(l => !l.retry);
+    try {
+      const fd = new FormData();
+      fd.append(f.mode, 'eigo-' + ((Q && Q.mode) || 'daily'));
+      fd.append(f.score, `${first.filter(l => l.ok).length}/${first.length}`);
+      fd.append(f.log, JSON.stringify(part.map(l => [l.at.slice(0, 16), l.id, l.ok ? 1 : 0, l.grade, l.sec, l.hint ? 1 : 0, l.retry ? 1 : 0, l.self ? 1 : 0])));
+      fetch(CFG.formPostUrl, { method: 'POST', body: fd, mode: 'no-cors', keepalive: true }).catch(() => {});
+      part.forEach(l => { l.s = 1; });
+    } catch (e) { /* 端末には残っている */ }
+  }
+  save();
 }
+// 1回分を終えた時だけでなく、途中でアプリを閉じた・切り替えた時にも送る
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') sendLog(); });
+window.addEventListener('pagehide', sendLog);
 
 // ---------- ホーム ----------
 function home() {
@@ -431,4 +437,5 @@ function importScreen() {
 }
 
 load(); index(); save(); home();
+if (S.log.some(l => !l.s)) sendLog(); // 送り残しがあれば起動時に送る
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
